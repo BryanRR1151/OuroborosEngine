@@ -42,11 +42,13 @@ for (var i = 0 ; (i < array_length(enemyUnits)) && (_drawn < _drawLimit); i++)
 	{
 		_drawn++;
 		draw_set_color(c_white);
+		draw_set_font(fnM5x7);
 		if (_char.id == _unitWithCurrentTurn) draw_set_color(c_yellow);
 		draw_text(x + COLUMN_ENEMY, y + 130 + (i*12), _char.name);
 	}
 }
 
+draw_set_font(fnOpenSansPX);
 //Draw party info
 for (var i = 0; i < array_length(partyUnits); i++)
 {

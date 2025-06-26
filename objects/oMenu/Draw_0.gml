@@ -31,3 +31,15 @@ if ((visibleOptionsMax < array_length(options)) && (hover < (array_length(option
 {
 	draw_sprite(sDownArrow, 0, x + widthFull * 0.5, y + heightFull - 7);  
 }
+
+if (shop)
+{
+	draw_set_halign(fa_left);
+	draw_set_valign(fa_top);
+	draw_sprite_stretched(sBox, 0, x + 250, y + 135, 45, 20);
+	
+	draw_set_halign(fa_center);
+	draw_set_valign(fa_middle);
+	draw_set_color(c_yellow);
+	draw_text(x + 273, y + 143, string(global.player.gold) + "g");
+}

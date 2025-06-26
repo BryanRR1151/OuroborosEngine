@@ -1,3 +1,13 @@
+if (instance_exists(oMusic))
+{
+	var _battleMusic = battleMusic;
+	with(oMusic) 
+	{
+		audio_pause_sound(current_sound);
+		current_sound_aux = audio_play_sound(_battleMusic, 0, true);
+	}
+}
+
 instance_deactivate_all(true);
 
 units = [];
@@ -12,6 +22,7 @@ battleText = "";
 currentUser = noone;
 currentAction = -1;
 currentTargets = noone;
+qSuccess = false;
 
 //Make targetting cursor
 cursor =
@@ -72,8 +83,6 @@ function BattleStateSelectAction()
 			exit;
 		}
 	
-		//BeginAction(_unit.id, global.actionLibrary.attack, _unit.id);
-	
 		//If unit is player controlled:
 		if (_unit.object_index == oBattleUnitPC)
 		{
@@ -85,8 +94,9 @@ function BattleStateSelectAction()
 			for (var i = 0; i < array_length(_actionList); i++)
 			{
 				var _action = _actionList[i];
-				var _available = true; //TODO: see if available
-				var _nameAndCount = _action.name; //TODO:
+				//var _available = true; //TODO: see if available
+				var _available = _unit.actions[i].avail(_unit);
+				var _nameAndCount = _action.name;
 				if (_action.subMenu == -1)
 				{
 					array_push(_menuOptions, { name: _nameAndCount, func: MenuSelectAction, args: [_unit, _action], avail: _available });
@@ -131,6 +141,32 @@ function BattleStateSelectAction()
 	
 }
 
+function BeginActionQuestion(_user, _action, _targets)
+{
+	qSuccess = false;
+	currentUser = _user;
+	currentAction = _action;
+	currentTargets = _targets;
+	
+    battleState = BattleWaitQuestion;
+	
+	var _rand = irandom(1);
+	var _qObject = noone;
+	
+	switch (_rand)
+	{
+		case 0: _qObject = oQuestion; break;
+		case 1: _qObject = oTimeLine; break;
+	}
+	
+	instance_create_depth(
+		camera_get_view_x(view_camera[0]),
+		camera_get_view_y(view_camera[0]),
+		-99999,
+		_qObject
+	);
+}
+
 function BeginAction(_user, _action, _targets)
 {
 	currentUser = _user;
@@ -139,6 +175,7 @@ function BeginAction(_user, _action, _targets)
 	battleText = string_ext(_action.description, [_user.name]);
 	if (!is_array(currentTargets)) currentTargets = [currentTargets];
 	battleWaitTimeRemaining = battleWaitTimeFrames;
+	
 	with(_user)
 	{
 		acting = true;
@@ -149,7 +186,34 @@ function BeginAction(_user, _action, _targets)
 			image_index = 0;
 		}
 	}
+	
 	battleState = BattleStatePerformAction;
+}
+
+function BattleWaitQuestion()
+{
+	if (!instance_exists(oQuestion) && !instance_exists(oTimeLine))
+	{
+		var _user = currentUser;
+		var _action = currentAction;
+		
+		battleText = string_ext(_action.description, [_user.name]);
+		if (!is_array(currentTargets)) currentTargets = [currentTargets];
+		battleWaitTimeRemaining = battleWaitTimeFrames;
+		
+		with(_user)
+		{
+			acting = true;
+			//play user animation if it is defined for that action, and that user
+			if (!is_undefined(_action[$ "userAnimation"])) && (!is_undefined(_user.sprites[$ _action.userAnimation]))
+			{
+				sprite_index = sprites[$ _action.userAnimation];
+				image_index = 0;
+			}
+		}
+	
+		battleState = BattleStatePerformAction;
+	}
 }
 
 function BattleStatePerformAction()
@@ -166,6 +230,28 @@ function BattleStatePerformAction()
 				image_index = 0;
 				acting = false;
 			}
+				
+			var targetGroup;
+			var isEnemyDefault = currentAction.targetEnemyByDefault;
+
+			if (currentUser.isParty) targetGroup = isEnemyDefault ? enemyUnits : partyUnits;
+			else targetGroup = isEnemyDefault ? partyUnits : enemyUnits;
+			
+			if (!currentAction.targetRequired)
+			{
+				var aliveTargets = [];
+				for (var i = 0; i < array_length(targetGroup); i++)
+				{
+					if (targetGroup[i].hp > 0) array_push(aliveTargets, targetGroup[i]);
+				}
+				
+				if (currentAction.targetAll == MODE.ALWAYS) currentTargets = aliveTargets;
+				else if (currentAction.targetAll == MODE.NEVER)
+				{
+					var _rand = irandom(array_length(aliveTargets) - 1);
+					currentTargets = [aliveTargets[_rand]];
+				}
+			}
 			
 			if(variable_struct_exists(currentAction, "effectSprite"))
 			{
@@ -175,17 +261,48 @@ function BattleStatePerformAction()
 					for (var i = 0; i < array_length(currentTargets); i++)
 					{
 						instance_create_depth(currentTargets[i].x, currentTargets[i].y,
-						currentTargets[i].depth - 1, oBattleEffect, {sprite_index: currentAction.effectSprite});
+						currentTargets[i].depth - 1, oBattleEffect, {sprite_index: currentAction.effectSprite, _sound: currentAction.effectSound });
 					}
 				}
 				else //play it at 0,0
 				{
 					var _effectSprite = currentAction.effectSprite;
 					if (variable_struct_exists(currentAction, "effectSpriteNoTarget")) _effectSprite = currentAction.effectSpriteNoTarget;
-					instance_create_depth(x, y, depth - 100, oBattleEffect, {sprite_index: _effectSprite});
+					instance_create_depth(x, y, depth - 100, oBattleEffect, {sprite_index: _effectSprite, _sound: currentAction.effectSound });
 				}
 			}
-			currentAction.func(currentUser, currentTargets);
+			
+			if (!qSuccess) currentAction.func(currentUser, currentTargets);
+			else
+			{
+				var _rand = irandom(1);
+				if (_rand == 1)
+				{
+					currentAction.funcPlus(currentUser, currentTargets);
+					instance_create_depth(
+						camera_get_view_x(view_camera[0]) + 160,
+						camera_get_view_y(view_camera[0]) + 90,
+						-999999,
+						oBattleFloatingText,
+						{font: fnM5x7, col: c_fuchsia, text: currentAction.messagePlus}
+					);
+					audio_play_sound(currentAction.soundPlus, 0, false);
+				}
+				else
+				{
+					currentAction.func(currentUser, currentTargets);
+					instance_create_depth(
+						camera_get_view_x(view_camera[0]) + 160,
+						camera_get_view_y(view_camera[0]) + 90,
+						-999999,
+						oBattleFloatingText,
+						{font: fnM5x7, col: c_yellow, text: "+500g!"}
+					);
+					global.player.gold += 500;
+					audio_play_sound(eCoin, 0, false);
+				}
+				qSuccess = false;
+			}
 		}
 	}
 	else //wait for delay and then end the turn
@@ -203,7 +320,93 @@ function BattleStatePerformAction()
 
 function BattleStateVictoryCheck()
 {
-	battleState = BattleStateTurnProgression;
+	var _enemyWon = true;
+	var _partyWon = true;
+	
+	for(var i = 0; i < array_length(enemyUnits); i++)
+	{
+		if(enemyUnits[i].hp > 0) 
+		{
+			battleState = BattleStateTurnProgression;
+			_partyWon = false;
+		}
+	}
+	
+	for(var i = 0; i < array_length(partyUnits); i++)
+	{
+		if(partyUnits[i].hp > 0) 
+		{
+			battleState = BattleStateTurnProgression;
+			_enemyWon = false;
+		}
+	}
+	
+	if(_partyWon) 
+	{
+		
+		instance_activate_all();
+		
+		if (instance_exists(oMusic))
+		{
+			with (oMusic)
+			{
+				audio_stop_sound(current_sound_aux);
+				audio_resume_sound(current_sound);
+			}
+		}
+		
+		instance_destroy();
+		
+		if (treeY == 7) 
+		{
+			global.time_end = current_time/1000;
+			global.go.win = true;
+			room_goto(rCutEnd);
+		}
+		else
+		{
+			instance_create_depth(
+				camera_get_view_x(view_camera[0]),
+				camera_get_view_y(view_camera[0]),
+				-9999,
+				oReward,
+				{
+					shop: false,
+					isBoss: isBoss
+				}
+			);
+		
+			for(var i = 0; i < array_length(global.nodes); i++)
+			{
+				var curNode = global.nodes[i];
+			
+				if(curNode.treeX == treeX && curNode.treeY == treeY)
+				{
+					curNode.object.aval = global.tree.activeNode;
+				} else if(abs(curNode.treeX - treeX) == 1 && curNode.treeY == treeY + 1)
+				{
+					curNode.object.aval = global.tree.freeNode;
+				} else if (curNode.object.aval.nodeId != 1)
+				{
+					curNode.object.aval = global.tree.blockedNode;
+				}
+			}
+		}
+	}
+	else if (_enemyWon)
+	{
+		global.time_end = current_time/1000;
+		instance_activate_all();
+		if (instance_exists(oMusic))
+		{
+			with (oMusic)
+			{
+				audio_stop_sound(current_sound_aux);
+				audio_resume_sound(current_sound);
+			}
+		}
+		room_goto(rGameOver);
+	}
 }
 
 function BattleStateTurnProgression()

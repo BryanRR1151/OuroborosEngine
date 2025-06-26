@@ -1,7 +1,12 @@
 if (active)
 {
 	//Control menu with keyboard
-	hover += keyboard_check_pressed(vk_down) - keyboard_check_pressed(vk_up);
+	var _move =  keyboard_check_pressed(vk_down) - keyboard_check_pressed(vk_up);
+	hover += _move;
+	
+	if (_move == 1) audio_play_sound(eDownLeft, 0, false);
+	if (_move == -1) audio_play_sound(eUpRight, 0, false);
+	
 	if (hover > array_length(options) - 1) hover = 0;
 	if (hover < 0) hover = array_length(options) - 1;
 	
@@ -10,6 +15,7 @@ if (active)
 	{
 		if (options[hover].func != undefined && options[hover].avail)
 		{
+			audio_play_sound(eMenuSelect, 0, false);
 			if (options[hover].func != -1)
 			{
 				var _func = options[hover].func;
@@ -17,6 +23,7 @@ if (active)
 				else _func();
 			}
 		}
+		else audio_play_sound(eBlocked, 0, false);
 	}
 	
 	if (keyboard_check_pressed(vk_escape))

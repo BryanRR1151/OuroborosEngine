@@ -1,7 +1,7 @@
 //@desc Menu - makes a menu, options provided in the form [{ name: "", func: foo, args: -1, avail: bool }, [...]]
-function Menu(_x, _y, _options, _description = -1, _width = undefined, _height = undefined)
+function Menu(_x, _y, _options, _description = -1, _width = undefined, _height = undefined, _shop = false)
 {
-	with (instance_create_depth(_x, _y, -99999, oMenu))
+	with (instance_create_depth(_x, _y, -999999, oMenu, { shop: _shop }))
 	{
 		options = _options;
 		description = _description;
@@ -100,8 +100,74 @@ function MenuSelectAction(_user, _action)
 		}
 		else //If no target needed, begin the action and end the menu
 		{
-			BeginAction(_user, _action, -1);
+			var _rand = irandom(1);
+			switch (_rand)
+			{
+				case 0: BeginAction(_user, _action, -1); break;
+				case 1: BeginActionQuestion(_user, _action, -1); break;
+			}
 			with (oMenu) instance_destroy();
 		}
 	}
+}
+
+function WrapText(_text, _max_lines, _max_chars) 
+{
+	var words = string_split(_text, " ");
+	var result = "";
+	var line = "";
+	var line_count = 0;
+	for (var i = 0; i < array_length(words); i++) {
+		var word = words[i];
+
+		// If adding the word exceeds the limit
+		if (string_length(line) + string_length(word) + 1 > _max_chars) {
+			result += line + "\n";
+			line = word;
+			line_count++;
+
+			// Stop if max lines reached
+			if (line_count >= _max_lines) {
+				result = string_trim(result); // clean trailing whitespace
+				result += "..."; // indicate cut-off
+				return result;
+			}
+		} else {
+			if (line != "") line += " ";
+			line += word;
+		}
+	}
+
+	// Add the last line
+	if (line != "") {
+		result += line;
+	}
+
+	return result;
+}
+
+
+function CompareAnswer(_answer, _correct)
+{
+	var _lenA = string_length(_answer);
+	var _lenC = string_length(_correct);
+	
+	if (_lenA != _lenC) return false;
+	
+	var _a1 = array_create(_lenA, "");
+    var _a2 = array_create(_lenA, "");
+	
+	for (var i = 0; i < _lenA; i++) {
+        _a1[i] = string_char_at(_answer, i + 1);
+        _a2[i] = string_char_at(_correct, i + 1);
+    }
+	
+	array_sort(_a1, true);
+    array_sort(_a2, true);
+	
+	for (var i = 0; i < _lenA; i++) {
+        if (_a1[i] != _a2[i]) return false;
+    }
+	
+	return true;
 }

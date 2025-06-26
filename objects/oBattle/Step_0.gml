@@ -70,7 +70,15 @@ if (cursor.active)
 		
 		if (_keyConfirm)
 		{
-			with(oBattle) BeginAction(cursor.activeUser, cursor.activeAction, cursor.activeTarget);
+			with(oBattle) 
+			{
+				var _rand = irandom(1);
+				switch (_rand)
+				{
+					case 0: BeginAction(cursor.activeUser, cursor.activeAction, cursor.activeTarget); break;
+					case 1: BeginActionQuestion(cursor.activeUser, cursor.activeAction, cursor.activeTarget); break;
+				}
+			}
 			with(oMenu) instance_destroy();
 			active = false;
 			confirmDelay = 0;
